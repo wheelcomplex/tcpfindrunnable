@@ -6,11 +6,114 @@ package main
 
 import (
 	"encoding/binary"
+	"flag"
 	"fmt"
+	"log"
 	"net"
+	"net/http"
+	"os"
+	"path/filepath"
+	"runtime"
+	"sync"
 	"sync/atomic"
 	"time"
+
+	_ "net/http/pprof"
 )
+
+//
+
+func main() {
+	var server bool
+	var duplex bool
+	var help bool
+	var hostport, httpprofile string
+	var cpus int
+
+	flag.BoolVar(&help, "h", false, "show help")
+	flag.BoolVar(&server, "L", false, "run as server, default run as client")
+	flag.BoolVar(&duplex, "D", false, "run in duplex mode")
+	flag.StringVar(&hostport, "H", "127.0.0.1:5180", "host:port for connect to or listen on")
+	flag.StringVar(&httpprofile, "P", "", "host:port for http profile")
+	flag.IntVar(&cpus, "C", 0, "running with N CPUs/threads, zero for all cpus")
+
+	flag.Parse()
+	if help {
+		flag.PrintDefaults()
+		os.Exit(1)
+	}
+
+	//
+	if cpus <= 0 {
+		cpus = runtime.NumCPU()
+	}
+	runtime.GOMAXPROCS(cpus)
+	cpus = runtime.GOMAXPROCS(-1)
+
+	p := NewEcho(!server, duplex)
+
+	destAddr, err := net.ResolveTCPAddr("tcp", hostport)
+	if err != nil {
+		log.Fatalln(err.Error())
+	}
+
+	if httpprofile != "" {
+		httpProfile(httpprofile)
+	}
+
+	var wg sync.WaitGroup
+
+	if server {
+		l, err := net.ListenTCP("tcp", destAddr)
+		if err != nil {
+			log.Fatalln(err.Error())
+		}
+		for idx := 0; idx < cpus; idx++ {
+			// accept
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				conn, err := l.AcceptTCP()
+				if err != nil {
+					log.Println(err.Error())
+				}
+				wg.Add(1)
+				go p.server(conn, &wg)
+			}()
+		}
+	} else {
+		for idx := 0; idx < cpus; idx++ {
+			// dial to
+			conn, err := net.DialTCP("tcp", nil, destAddr)
+			if err != nil {
+				log.Fatalln(err.Error())
+			}
+			wg.Add(1)
+			go p.client(conn, &wg)
+		}
+	}
+
+	fmt.Printf("%s running on %s, with %d workers, press <CTL+C> to exit ...\n", p.Title(), destAddr.String(), cpus)
+	wg.Wait()
+	fmt.Printf("all done\n")
+}
+
+//
+func httpProfile(profileurl string) {
+	binpath, _ := filepath.Abs(os.Args[0])
+	fmt.Printf("\n http profile: [ http://%s/debug/pprof/ ]\n", profileurl)
+	fmt.Printf("\n http://%s/debug/pprof/goroutine?debug=1\n\n", profileurl)
+	fmt.Printf("\ngo tool pprof %s http://%s/debug/pprof/profile\n\n", binpath, profileurl)
+	fmt.Printf("\ngo tool pprof %s http://%s/debug/pprof/heap\n\n", binpath, profileurl)
+	go func() {
+		if err := http.ListenAndServe(profileurl, nil); err != nil {
+			fmt.Printf("http/pprof: %s\n", err.Error())
+			os.Exit(1)
+		}
+	}()
+}
+
+//
 
 // state machine for echo server/client
 const (
@@ -26,82 +129,74 @@ const IDENTIFY_SIZE int = 8
 
 //
 type Echo struct {
-	isclient     bool
-	title        string
-	seq          *uint64
-	connected    *int64
-	disconnected *int64
-	request      *int64
-	response     *int64
-	closing      bool
+	isclient bool
+	isduplex bool
+	title    string
+	seq      *uint64
+	request  *int64
+	response *int64
 }
 
 //
-func NewEcho(isclient bool) *Echo {
+func NewEcho(isclient bool, isduplex bool) *Echo {
 	var seq uint64
-	var connected, disconnected, request, response int64
+	var request, response int64
 	var title string
 	if isclient {
 		title = "tcp echo client"
 	} else {
 		title = "tcp echo server"
 	}
+	if isduplex {
+		title = title + ", duplex mode"
+	} else {
+		title = title + ", mono mode"
+	}
 	p := &Echo{
-		title:        title,
-		isclient:     isclient,
-		seq:          &seq,
-		connected:    &connected,
-		disconnected: &disconnected,
-		request:      &request,
-		response:     &response,
+		title:    title,
+		isclient: isclient,
+		isduplex: isduplex,
+		seq:      &seq,
+		request:  &request,
+		response: &response,
 	}
 	go p.stat(10)
 	return p
+}
+
+// Title
+func (p *Echo) Title() string {
+	return p.title
 }
 
 // stat
 func (p *Echo) stat(interval int) {
 	tk := time.NewTicker(time.Duration(interval) * time.Second)
 	defer tk.Stop()
-	var connected, disconnected, request, response int64
-	var preconnected, predisconnected, prerequest, preresponse int64
+	var request, response int64
+	var prerequest, preresponse int64
 	prets := time.Now()
 	timesecond := int64(time.Second)
-	for p.closing == false {
-		connected = atomic.LoadInt64(p.connected)
-		disconnected = atomic.LoadInt64(p.disconnected)
+	for {
+		<-tk.C
 		request = atomic.LoadInt64(p.request)
 		response = atomic.LoadInt64(p.response)
-		if connected != preconnected || disconnected != predisconnected || request != prerequest || response != preresponse {
+		if request != prerequest || response != preresponse {
 			esp := time.Now().Sub(prets)
 			fmt.Printf(" --- %s status(%v) --- \n", p.title, esp)
-			fmt.Printf("connected:\t%d,\t%d\n", connected, (connected-preconnected)*timesecond/int64(esp))
-			fmt.Printf("disconnected:\t%d,\t%d\n", disconnected, (disconnected-predisconnected)*timesecond/int64(esp))
 			fmt.Printf("request:\t%d,\t%d\n", request, (request-prerequest)*timesecond/int64(esp))
-			fmt.Printf("response:\t%d,\t%d\n", response, (connected-preresponse)*timesecond/int64(esp))
+			fmt.Printf("response:\t%d,\t%d\n", response, (response-preresponse)*timesecond/int64(esp))
 			fmt.Printf(" --- --- \n")
 		}
-		preconnected = connected
-		predisconnected = disconnected
 		prerequest = request
 		preresponse = response
 		prets = time.Now()
-		<-tk.C
 	}
-}
-
-// OnConnected
-func (p *Echo) OnConnected(link *net.TCPConn) error {
-	atomic.AddInt64(p.connected, 1)
-	defer atomic.AddInt64(p.disconnected, 1)
-	if p.isclient {
-		return p.client(link)
-	}
-	return p.server(link)
 }
 
 // client send seq and read+verify response
-func (p *Echo) client(link *net.TCPConn) error {
+func (p *Echo) client(link *net.TCPConn, wg *sync.WaitGroup) error {
+	defer wg.Done()
 	var err error
 	var seq, vseq uint64
 	var state int
@@ -111,7 +206,7 @@ func (p *Echo) client(link *net.TCPConn) error {
 
 	state = STATE_INIT_SEQ
 
-	for p.closing == false {
+	for {
 		switch state {
 		case STATE_INIT_SEQ:
 			// seq start from 2, step by 2
@@ -134,6 +229,10 @@ func (p *Echo) client(link *net.TCPConn) error {
 				continue
 			}
 			atomic.AddInt64(p.request, 1)
+			if p.isduplex == false {
+				state = STATE_INIT_SEQ
+				continue
+			}
 			state = STATE_READ_RESET
 			fallthrough
 		case STATE_READ_RESET:
@@ -166,7 +265,8 @@ func (p *Echo) client(link *net.TCPConn) error {
 }
 
 // server
-func (p *Echo) server(link *net.TCPConn) error {
+func (p *Echo) server(link *net.TCPConn, wg *sync.WaitGroup) error {
+	defer wg.Done()
 	var err error
 	var seq uint64
 	var state int
@@ -176,7 +276,7 @@ func (p *Echo) server(link *net.TCPConn) error {
 
 	state = STATE_READ_RESET
 
-	for p.closing == false {
+	for {
 		switch state {
 		case STATE_READ_RESET:
 			byteIn = 0
@@ -197,6 +297,10 @@ func (p *Echo) server(link *net.TCPConn) error {
 			if seq < 1 {
 				fmt.Printf("server, %s closed for invalid seq(%d).\n", link.RemoteAddr().String(), seq)
 				return err
+			}
+			if p.isduplex == false {
+				state = STATE_READ_RESET
+				continue
 			}
 			// server side, seq +1 and send response
 			seq++
@@ -226,14 +330,7 @@ func (p *Echo) server(link *net.TCPConn) error {
 	return err
 }
 
-// Close all handled connections
-func (p *Echo) Close() error {
-	p.closing = true
-	return nil
-}
-
 //
-
-func main() {
-
-}
+//
+//
+//
