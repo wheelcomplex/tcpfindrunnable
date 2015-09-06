@@ -1,0 +1,57 @@
+$ go build && ./tcpfindrunnable -P 127.0.0.1:6010
+
+ http profile: [ http://127.0.0.1:6010/debug/pprof/ ]
+
+ http://127.0.0.1:6010/debug/pprof/goroutine?debug=1
+
+
+ go tool pprof /home/rhinofly/golibs/src/github.com/wheelcomplex/tcpfindrunnable/tcpfindrunnable http://127.0.0.1:6010/debug/pprof/profile
+
+
+ go tool pprof /home/rhinofly/golibs/src/github.com/wheelcomplex/tcpfindrunnable/tcpfindrunnable http://127.0.0.1:6010/debug/pprof/heap
+
+tcp echo client/server, mono mode running on 127.0.0.1:5180, with 8 workers, press <CTL+C> to exit ...
+ --- tcp echo client/server, mono mode status(10.042635344s) --- 
+request:        39681878,       3951341
+response:       0,      0
+ --- --- 
+ --- tcp echo client/server, mono mode status(10.003536939s) --- 
+request:        80609987,       4091363
+response:       0,      0
+ --- --- 
+ --- tcp echo client/server, mono mode status(9.98745775s) --- 
+request:        120860105,      4030066
+response:       0,      0
+ --- --- 
+ --- tcp echo client/server, mono mode status(9.995424562s) --- 
+request:        161146805,      4030514
+response:       0,      0
+ --- --- 
+ --- tcp echo client/server, mono mode status(10.02796667s) --- 
+request:        200873374,      3961577
+response:       0,      0
+ --- --- 
+ --- tcp echo client/server, mono mode status(9.954504702s) --- 
+request:        240684618,      3999319
+response:       0,      0
+ --- --- 
+ --- tcp echo client/server, mono mode status(10.067950953s) --- 
+request:        279425172,      3847908
+response:       0,      0
+ --- --- 
+ --- tcp echo client/server, mono mode status(9.960706768s) --- 
+request:        318585148,      3931445
+response:       0,      0
+ --- --- 
+ --- tcp echo client/server, mono mode status(10.078467045s) --- 
+request:        358500022,      3960411
+response:       0,      0
+ --- --- 
+ --- tcp echo client/server, mono mode status(9.916423762s) --- 
+request:        396810975,      3863384
+response:       0,      0
+ --- --- 
+ --- tcp echo client/server, mono mode status(10.00163349s) --- 
+request:        435551543,      3873424
+response:       0,      0
+ --- ---

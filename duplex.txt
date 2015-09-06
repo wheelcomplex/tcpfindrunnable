@@ -1,0 +1,68 @@
+$ go build && ./tcpfindrunnable -P 127.0.0.1:6010 -D
+ http profile: [ http://127.0.0.1:6010/debug/pprof/ ]
+
+ http://127.0.0.1:6010/debug/pprof/goroutine?debug=1
+
+
+ go tool pprof /home/rhinofly/golibs/src/github.com/wheelcomplex/tcpfindrunnable/tcpfindrunnable http://127.0.0.1:6010/debug/pprof/profile
+
+
+ go tool pprof /home/rhinofly/golibs/src/github.com/wheelcomplex/tcpfindrunnable/tcpfindrunnable http://127.0.0.1:6010/debug/pprof/heap
+
+tcp echo client/server, duplex mode running on 127.0.0.1:5180, with 8 workers, press <CTL+C> to exit ...
+ --- tcp echo client/server, duplex mode status(10.000056327s) --- 
+request:        3579343,        357932
+response:       3579341,        357932
+ --- --- 
+ --- tcp echo client/server, duplex mode status(9.999895238s) --- 
+request:        7160201,        358089
+response:       7160200,        358089
+ --- --- 
+ --- tcp echo client/server, duplex mode status(9.999950542s) --- 
+request:        10735800,       357561
+response:       10735798,       357561
+ --- --- 
+ --- tcp echo client/server, duplex mode status(9.999947678s) --- 
+request:        14319349,       358356
+response:       14319348,       358356
+ --- --- 
+ --- tcp echo client/server, duplex mode status(9.999950635s) --- 
+request:        17901833,       358250
+response:       17901830,       358249
+ --- --- 
+ --- tcp echo client/server, duplex mode status(9.999907989s) --- 
+request:        21490597,       358879
+response:       21490596,       358879
+ --- --- 
+ --- tcp echo client/server, duplex mode status(9.999927648s) --- 
+request:        25074312,       358374
+response:       25074311,       358374
+ --- --- 
+ --- tcp echo client/server, duplex mode status(9.999962077s) --- 
+request:        28655729,       358143
+response:       28655727,       358142
+ --- --- 
+ --- tcp echo client/server, duplex mode status(10.000171243s) --- 
+request:        32242881,       358709
+response:       32242880,       358709
+ --- --- 
+ --- tcp echo client/server, duplex mode status(9.999729796s) --- 
+request:        35828409,       358562
+response:       35828407,       358562
+ --- --- 
+ --- tcp echo client/server, duplex mode status(9.999942194s) --- 
+request:        39406193,       357780
+response:       39406190,       357780
+ --- --- 
+ --- tcp echo client/server, duplex mode status(9.999967615s) --- 
+request:        42984662,       357848
+response:       42984661,       357848
+ --- --- 
+ --- tcp echo client/server, duplex mode status(9.999967111s) --- 
+request:        46569335,       358468
+response:       46569332,       358468
+ --- --- 
+ --- tcp echo client/server, duplex mode status(9.99989906s) --- 
+request:        50155453,       358615
+response:       50155451,       358615
+ --- ---
