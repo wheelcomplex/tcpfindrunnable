@@ -186,14 +186,13 @@ type Echo struct {
 	isduplex bool
 	title    string
 	seq      *uint64
-	request  *int64
-	response *int64
+	active   *int64
 }
 
 //
 func NewEcho(isduplex bool, interval int) *Echo {
 	var seq uint64
-	var request, response int64
+	var active int64
 	var title string
 	title = "tcp echo client/server"
 	if isduplex {
@@ -205,8 +204,7 @@ func NewEcho(isduplex bool, interval int) *Echo {
 		title:    title,
 		isduplex: isduplex,
 		seq:      &seq,
-		request:  &request,
-		response: &response,
+		active:   &active,
 	}
 	if interval > 0 {
 		go p.stat(interval)
@@ -227,19 +225,17 @@ func (p *Echo) stat(interval int) {
 	var prerequest, preresponse int64
 	prets := time.Now()
 	timesecond := int64(time.Second)
+
 	for {
 		<-tk.C
-		request = atomic.LoadInt64(p.request)
-		response = atomic.LoadInt64(p.response)
+		request = atomic.LoadInt64(p.active)
 		if request != prerequest || response != preresponse {
 			esp := time.Now().Sub(prets)
 			fmt.Printf(" --- %s status(%v) --- \n", p.title, esp)
-			fmt.Printf("request:\t%d,\t%d\n", request, (request-prerequest)*timesecond/int64(esp))
-			fmt.Printf("response:\t%d,\t%d\n", response, (response-preresponse)*timesecond/int64(esp))
+			fmt.Printf("active:\t%d,\t%d\n", request, (request-prerequest)*timesecond/int64(esp))
 			fmt.Printf(" --- --- \n")
 		}
 		prerequest = request
-		preresponse = response
 		prets = time.Now()
 	}
 }
@@ -272,7 +268,7 @@ func (p *Echo) server(link *net.TCPConn, wg *sync.WaitGroup) error {
 			if totalByteIn < IDENTIFY_SIZE {
 				continue
 			}
-			atomic.AddInt64(p.request, 1)
+			atomic.AddInt64(p.active, 1)
 			seq = binary.BigEndian.Uint64(echobuf)
 			if seq < 1 {
 				fmt.Printf("server, %s closed for invalid seq(%d).\n", link.RemoteAddr().String(), seq)
@@ -301,7 +297,7 @@ func (p *Echo) server(link *net.TCPConn, wg *sync.WaitGroup) error {
 			if totalByteOut < IDENTIFY_SIZE {
 				continue
 			}
-			atomic.AddInt64(p.response, 1)
+			atomic.AddInt64(p.active, 1)
 			state = STATE_READ_RESET
 			// next round
 			continue
